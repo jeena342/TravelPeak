@@ -26,6 +26,9 @@ const tourSchema = new mongoose.Schema(
     ratingsAverage: {
       type: Number,
       default: 4.5,
+      min: [1, 'Rating must be above 1.0'],
+      max: [5, 'Rating must be below 5.0'],
+      set: val => Math.round(val * 10) / 10 // 4.666666, 46.6666, 47, 4.7
     },
     ratingsQuantity: {
       type: Number,
@@ -45,6 +48,7 @@ const tourSchema = new mongoose.Schema(
         message:"Discount price must be greater than price"
 
       }
+
     },
        
     summary: {
@@ -66,13 +70,25 @@ const tourSchema = new mongoose.Schema(
       default: Date.now(),
      
     },
+    guides: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User'
+      }
+    ],
     startDates: [Date],
+  },
+   
     
-  },{ toJSON:{virtuals:true},
+  { toJSON:{virtuals:true},
       toObject:{virtuals:true}
 
   }
 )
+
+tourSchema.index({ price: 1, ratingsAverage: -1 });
+tourSchema.index({ slug: 1 });
+
   tourSchema.virtual('durationweeks').get(function(){
       return this.duration/7;
   })
@@ -90,6 +106,22 @@ tourSchema.post(/^find/,function(doc,next){
   //console.log(doc)
   next()
 })
+
+tourSchema.pre(/^find/, function(next) {
+  this.populate({
+    path: 'guides',
+    select: '-__v -passwordChangedAt'
+  });
+
+  next();
+});
+
+tourSchema.virtual('reviews', {
+  ref: 'Review',
+  foreignField: 'tour',
+  localField: '_id'
+});
+
 tourSchema.pre('aggregate',function(next){
 
   this.pipeline().unshift({$match:{secretTour:{$ne:true}}})
